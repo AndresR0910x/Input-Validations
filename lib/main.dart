@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 void main() {
   runApp(MyApp());
@@ -38,12 +40,56 @@ class _RegistroFormularioState extends State<RegistroFormulario> {
   // Variables de género
   String _generoSeleccionado = 'M';
 
+  // Variables para la fecha
+  DateTime? _fechaSeleccionada;
+
   // Expresiones regulares para validación
   final RegExp nombreRegExp = RegExp(r'^[a-zA-Z\s]+$');
   final RegExp cedulaRegExp = RegExp(r'^\d{10}$');
   final RegExp telefonoRegExp = RegExp(r'^\d{7,10}$');
   final RegExp correoRegExp = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
-  final RegExp contrasenaRegExp = RegExp(r'^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$');
+  final RegExp contrasenaRegExp = RegExp(
+      r'^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$');
+
+  // Función para mostrar el selector de fecha
+  Future<void> _seleccionarFecha(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null && picked != _fechaSeleccionada) {
+      setState(() {
+        _fechaSeleccionada = picked;
+        _fechaController.text = "${picked.toLocal()}".split(' ')[0]; // Formato YYYY-MM-DD
+      });
+    }
+  }
+
+  Future<void> postUser() async {
+    final url = Uri.parse('http://localhost:8000/registrar');
+    final response = await http.post(
+      url,
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'nombre': _nombreController.text,
+        'apellido': _apellidoController.text,
+        'cedula': _cedulaController.text,
+        'telefono': _telefonoController.text,
+        'fecha': _fechaController.text,
+        'genero': _generoSeleccionado,
+        'correo': _correoController.text,
+        'contrasena': _contrasenaController.text,
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      print('Usuario registrado exitosamente');
+    } else {
+      print('Error al registrar el usuario: ${response.body}');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -70,7 +116,7 @@ class _RegistroFormularioState extends State<RegistroFormulario> {
                   return null;
                 },
               ),
-              
+
               // Campo Apellido
               TextFormField(
                 controller: _apellidoController,
@@ -115,19 +161,20 @@ class _RegistroFormularioState extends State<RegistroFormulario> {
                 },
               ),
 
-              // Campo Fecha
+              // Campo Fecha (con selector de fecha)
               TextFormField(
                 controller: _fechaController,
-                decoration: InputDecoration(labelText: 'Fecha (YYYY-MM-DD)'),
+                decoration: InputDecoration(
+                  labelText: 'Fecha de Nacimiento',
+                  suffixIcon: IconButton(
+                    icon: Icon(Icons.calendar_today),
+                    onPressed: () => _seleccionarFecha(context),
+                  ),
+                ),
+                readOnly: true,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'La fecha es obligatoria';
-                  }
-                  // Validación básica de formato
-                  try {
-                    DateTime.parse(value);
-                  } catch (_) {
-                    return 'La fecha no tiene un formato válido';
                   }
                   return null;
                 },
@@ -197,10 +244,9 @@ class _RegistroFormularioState extends State<RegistroFormulario> {
               SizedBox(height: 20),
               // Botón de envío
               ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
                   if (_formKey.currentState!.validate()) {
-                    // Enviar datos al servidor
-                    print('Formulario válido y enviado');
+                    await postUser();
                   } else {
                     print('Errores en el formulario');
                   }
